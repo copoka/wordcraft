@@ -12,9 +12,11 @@
 //! - `wordcraft:open` (from the host): `{ name, bytes }`. It opens like a document picked with
 //!   File › Open or dropped on the window; a file over [`MAX_OPEN_BYTES`] is refused before it is
 //!   copied.
-//! - `wordcraft:save` (to the host): `{ name, saveAs, bytes }` for every file WordCraft would
-//!   otherwise download. The host stores it and reports failures itself. `saveAs` says whether
-//!   the file becomes the document's file:
+//! - `wordcraft:save` (to the host): `{ name, saveAs, bytes, id }` for every file WordCraft would
+//!   otherwise download. The host stores it and reports failures itself; it answers `saved {id}`
+//!   once it is stored, and the title bar's cluster says `Saving…` until it does
+//!   (storytold/craft-libs#2079). Copies (exports, page images) carry no `id`: they are not the
+//!   document. `saveAs` says whether the file becomes the document's file:
 //!   - Save: `false`. It writes the opened file under its own name and format, as the desktop
 //!     app does. A name the parent never sent (an untitled document, an imported .doc saved as
 //!     .docx) is a new file: `true`, as for Save As.
@@ -30,9 +32,11 @@
 //! to the host rather than downloaded, the host guards leaving the page, and `?author=` names the
 //! user for comments and tracked changes.
 
+use std::cell::Cell;
 use std::rc::Rc;
 
 use craft_web_host::web::{FileData, Host, Message};
+use wordcraft_ui_egui::host_status::{HostStatusHandle, StatusInput, handle};
 use wordcraft_ui_egui::{Inbox, Services, WordApp};
 
 /// The app id in the host messages (`wordcraft:ready`).
@@ -50,6 +54,13 @@ const MAX_AUTHOR_CHARS: usize = 200;
 #[derive(Clone)]
 pub struct Bridge {
     host: Rc<Host>,
+    /// Whether the page has stored the document, shared with the title bar
+    /// (storytold/craft-libs#2079). Only the save state is wired: participants, stored version,
+    /// sync and read-only wait for the session messages of storytold/craft-libs#716.
+    status: HostStatusHandle,
+    /// The `id` the next save carries. The contract has a page answer a save only by its `id`, so
+    /// without one the app could not tell a stored save from a posted one.
+    saves: Rc<Cell<u64>>,
 }
 
 impl Bridge {
@@ -57,23 +68,33 @@ impl Bridge {
     /// `data-host="page"` on the canvas, an unframed `?host=parent` page (it stays the normal app
     /// with downloads), or a parent on another origin.
     pub fn detect(canvas: &web_sys::HtmlCanvasElement) -> Option<Self> {
-        Some(Self { host: Rc::new(Host::connect(APP, canvas)?) })
+        Some(Self { host: Rc::new(Host::connect(APP, canvas)?), status: handle(), saves: Rc::new(Cell::new(0)) })
     }
 
     /// Hand saved and exported files to the host instead of downloading them, report unsaved
-    /// changes to it, and hear the files it sends.
+    /// changes to it, hear the files it sends, and show whether it stored the document.
     pub fn connect(&self, services: &mut Services, inbox: Inbox, ctx: egui::Context) {
         self.listen(inbox, ctx);
         let bridge = self.clone();
-        services.host_save = Some(Box::new(move |name: &str, bytes: &[u8], save_as: bool| bridge.post_save(name, bytes, save_as)));
-        // Anything else that would download goes to the host too.
+        services.host_save = Some(Box::new(move |name: &str, bytes: &[u8], save_as: bool| bridge.save(name, bytes, save_as)));
+        // Anything else that would download goes to the host too. Those are copies (an export, a
+        // page image), not the document, so they say nothing about whether it is stored.
         let bridge = self.clone();
-        services.download = Some(Box::new(move |name: &str, bytes: &[u8]| bridge.post_save(name, bytes, false)));
+        services.download = Some(Box::new(move |name: &str, bytes: &[u8]| bridge.copy(name, bytes)));
         // The browser's save picker is never used, so no save finishes later.
         services.async_saves = None;
         // The crate does not repeat a state it already reported.
         let host = self.host.clone();
-        services.on_dirty = Some(Box::new(move |dirty: bool| host.post_dirty(dirty)));
+        let status = self.status.clone();
+        services.on_dirty = Some(Box::new(move |dirty: bool| {
+            // A change is what the status state does not know by itself; a clean document is what
+            // its own save answers already said.
+            if dirty {
+                status.lock().unwrap_or_else(|e| e.into_inner()).apply(StatusInput::Edited);
+            }
+            host.post_dirty(dirty);
+        }));
+        services.host_status = Some(self.status.clone());
     }
 
     /// `?author=`: the host's name for the user signs comments and tracked changes.
@@ -93,19 +114,51 @@ impl Bridge {
         let _ = self.host.post_failed(error, None);
     }
 
-    fn post_save(&self, path: &str, bytes: &[u8], save_as: bool) -> Result<(), String> {
-        let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.to_string());
-        self.host.post_save(&name, bytes, None, save_as)
+    /// Hand the page a file the document keeps, and take the answer it gives by `id`: `Saving…`
+    /// while it is out, `Saved` once the page says it stored it, `Unsaved` when the page could not
+    /// be reached (storytold/craft-libs#2079).
+    fn save(&self, path: &str, bytes: &[u8], save_as: bool) -> Result<(), String> {
+        let id = self.saves.get() + 1;
+        self.saves.set(id);
+        let id = id.to_string();
+        let posted = self.host.post_save(&file_name(path), bytes, Some(&id), save_as);
+        let mut status = self.status.lock().unwrap_or_else(|e| e.into_inner());
+        match &posted {
+            Ok(()) => status.apply(StatusInput::SavePosted { id: Some(&id) }),
+            // The bytes never got to the page: the document is not stored, and the reason is the one
+            // the save reports in the status bar.
+            Err(error) => status.apply(StatusInput::SaveFailed { id: Some(&id), error }),
+        }
+        posted
     }
 
-    /// Hear `wordcraft:open` and queue the file like a dropped one.
+    /// Hand the page a copy of the document (an export, a page image). A copy is not the document,
+    /// so it asks for no answer and leaves the save state alone.
+    fn copy(&self, path: &str, bytes: &[u8]) -> Result<(), String> {
+        self.host.post_save(&file_name(path), bytes, None, false)
+    }
+
+    /// Hear `wordcraft:open` and queue the file like a dropped one, and `wordcraft:saved`: the page
+    /// stored the document (storytold/craft-libs#2079). The rest of the contract is the app's
+    /// business only once the session messages arrive (storytold/craft-libs#716).
     fn listen(&self, inbox: Inbox, ctx: egui::Context) {
-        self.host.listen(move |message| {
-            if let Message::Open { name, data } = message {
-                deliver_open(&inbox, &ctx, &name, &data);
+        let status = self.status.clone();
+        self.host.listen(move |message| match message {
+            Message::Open { name, data } => deliver_open(&inbox, &ctx, &name, &data),
+            Message::Saved { id } => {
+                status.lock().unwrap_or_else(|e| e.into_inner()).apply(StatusInput::Saved { id: &id });
+                // The person may have stopped typing: the bar has to draw the page's answer even
+                // when no input wakes the app.
+                ctx.request_repaint();
             }
+            _ => {}
         });
     }
+}
+
+/// The file name a path ends in, as the host messages carry it.
+fn file_name(path: &str) -> String {
+    std::path::Path::new(path).file_name().map_or_else(|| path.to_string(), |n| n.to_string_lossy().to_string())
 }
 
 /// The file an open message carries, pushed onto the inbox for the next frame, like a dropped

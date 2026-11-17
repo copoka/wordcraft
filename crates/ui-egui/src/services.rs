@@ -52,6 +52,11 @@ pub struct Services {
     /// Web: told whether the document has unsaved changes after each pass, for the browser's
     /// leave-page guard (`beforeunload` runs between frames and can't ask the app).
     pub on_dirty: Option<Box<dyn Fn(bool)>>,
+    /// Web, framed by a page that keeps the files (`?host=parent`): whether that page stored the
+    /// document, as the page's own `saved` answers say ([`crate::host_status`],
+    /// storytold/craft-libs#2079). The bridge writes it, the title bar draws it; `None` (desktop,
+    /// and a web build no page frames) draws no status cluster at all.
+    pub host_status: Option<crate::host_status::HostStatusHandle>,
     /// Web: hand PDF bytes to the browser's print dialog (no download or intermediate file).
     /// Desktop uses `print_native` instead. An error means nothing was opened.
     pub print: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,

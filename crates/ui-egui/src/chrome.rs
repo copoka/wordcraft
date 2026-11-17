@@ -382,6 +382,17 @@ pub fn title_bar(app: &mut WordApp, ui: &mut Ui) {
                     if app.ui.quick_access_toolbar {
                         quick_access(ui, app);
                     }
+                    // A page that keeps the file (`?host=parent`) says whether the document is
+                    // stored; the cluster sits with AutoSave, in the bar's own type
+                    // (storytold/craft-libs#2079). A build no page frames has no handle and draws
+                    // nothing here, and neither does a window with no document: there is nothing
+                    // for the page to hold yet.
+                    if app.has_document()
+                        && let Some(status) = &app.services.host_status
+                    {
+                        ui.add_space(8.0);
+                        crate::host_status::cluster(ui, status, control_h);
+                    }
                     qat_end = if rtl { ui.min_rect().min.x } else { ui.min_rect().max.x };
                     ui.with_layout(crate::rtl::far_side(ui, egui::Align::Center), |ui| {
                         // Account / community.
@@ -426,6 +437,10 @@ pub fn title_bar(app: &mut WordApp, ui: &mut Ui) {
             let title = if !app.has_document() {
                 // No document open (#1129): the app's name alone.
                 "WordCraft".to_string()
+            } else if app.services.host_status.is_some() {
+                // The page keeps the file, so the cluster beside AutoSave says whether it stored
+                // the document; the title is the document's name alone (storytold/craft-libs#2079).
+                crate::i18n::isolate(&app.title_stem())
             } else {
                 format!(
                     "{} — {}",

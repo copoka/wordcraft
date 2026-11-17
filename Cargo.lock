@@ -7609,6 +7609,7 @@ dependencies = [
  "craft-i18n",
  "craft-ui",
  "craft-update",
+ "craft-web-host",
  "craft-window",
  "craft-zip",
  "egui",

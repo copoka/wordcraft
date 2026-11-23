@@ -69,3 +69,7 @@ shared layer while `collab-doc` keeps the structural operations. It runs the bra
 cases against an in-process mock — two clients converging, reconnect, structural-versus-text
 conflict, viewer refusal, a 100-page document's round-trip — before the desktop and web wiring
 move onto it. Anything that needs a contract change is an issue on `craft-libs`, not a local fork.
+
+Landed as `crates/collab-adapter` on `feat/collab-adapter` from `origin/main` (STATUS §5.62): the
+five cases above over the seam, no wire type, no pin. The missing shared contract is
+`craft-libs#3235`; the branch waits for the fork push (STATUS §5.62).

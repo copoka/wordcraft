@@ -5500,6 +5500,32 @@ it.
 workflow line is in either diff, so no `cargo xtask ci` was run and none is claimed. The branch
 tree at this commit is clean (`git status --short` empty) and matches the fork.
 
+### 5.61 RFC-0020 contracts moved on 2026-11-23 (20:05Z)
+
+**#2108 answered.** wdunn001's reading of the status inputs — the save state's second authority,
+`Entry::writable` beside `StatusInput::ReadOnly`, the participant count, the two `craft-*-host`
+names — is now written in the crate README (`2882d72`, documentation only: the rules and the 18
+tests are unchanged) and the reply points at it. The rule recorded there: one input per document
+by the document's origin, the cloud contract for a cloud entry, the host page for a document the
+page handed in; `cluster().participants` is the hosted-page count, explicitly not RFC-0020 item
+2's presence count.
+
+**#345 rebased.** The PR's branch (wdunn001's fork, head `cef9e963`) was rebased onto `main`
+`249a41bd` here: only `Cargo.toml` (one `[workspace.dependencies]` line) and `Cargo.lock` (the
+crate's package block) conflicted, both mechanically — main's newer entries kept, ours inserted in
+alphabetical order. Gate on host `agents`: `metadata --locked` rc 0, `fmt -p craft-crdt --
+--check` rc 0, `clippy -p craft-crdt --all-targets --all-features -- -D warnings` rc 0, `test -p
+craft-crdt` **42 passed, 1 ignored**. The rebased series went into the PR as a patch-series gist:
+a branch push from our fork is refused by the token's missing `workflow` scope, because the branch
+now carries main's workflow updates. That one external item is in the queue as
+`craft-libs:push-workflow-scope`.
+
+**Adapter plan.** `docs/collab/adapters.md`: the branch's modules by what they become under
+RFC-0020, the six contract surfaces (session, presence, `Texts`, the document model with its
+unmodelled OOXML parts, the cabinet commit, roles), the state of the contracts, and the first
+increment — one app-side PR inside 1 500 lines, the relay kept behind the trait, `Texts` from the
+shared layer.
+
 ## 6. Where things live
 
 | Concern | File |

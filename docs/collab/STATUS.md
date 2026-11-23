@@ -5552,10 +5552,10 @@ the backend; a 3 000-paragraph document paginates 100+ pages identically on both
 relay, and round-trips through `.docx` with a custom XML part byte for byte.
 
 **Gates (host `agents`).** `test -p wordcraft-collab-adapter` **13 passed**; workspace clippy
-`-D warnings` and `fmt --all --check` rc 0; `xtask ci` failed only
-`wordcraft-engine::cmd::packs::tests::swiss_german_and_portugal_portuguese_keep_their_languages_rules`,
-reproduced identically on detached `origin/main` in the same environment (`CRAFT_I18N_DIR` unset);
-`xtask layers` rc 0; `xtask wasm` rc 0.
+`-D warnings` and `fmt --all --check` rc 0; `xtask ci` reached `test` and stopped in the engine's
+lib binary (1 581 passed, 1 failed: `cmd::packs::tests::swiss_german_and_portugal_portuguese_keep_
+their_languages_rules`, reproduced identically on detached `origin/main` in the same environment
+(`CRAFT_I18N_DIR` unset); the binaries after it did not run); `xtask layers` and `xtask wasm` rc 0.
 
 **Push.** Not in the fork yet: its `main` (`729cd0a5`) predates upstream's workflow changes, so a
 branch from `700ce2f8` brings `.github/workflows/*` the fork lacks and needs the token's `workflow`

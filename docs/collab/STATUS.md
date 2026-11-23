@@ -5526,11 +5526,10 @@ unmodelled OOXML parts, the cabinet commit, roles), the state of the contracts, 
 increment — one app-side PR inside 1 500 lines, the relay kept behind the trait, `Texts` from the
 shared layer.
 
-**#1338 stack.** The confirmed-saves commit written on 2026-11-21 (`1f9bc46`, `save-failed`, the
-crate-owned 30 s timeout, the pending-save queue) is rebased on the README commit and pushed to
-`copoka/craft-libs` `feat/confirmed-saves` `fc410452`; gate on it: `fmt -p craft-web-host` rc 0,
-`clippy --all-targets -D warnings` rc 0, `test -p craft-web-host` **35 passed**. Its PR waits for
-`#2108` to merge, since it is stacked on that branch and a cross-fork base is not a thing.
+**#1338 stack.** The confirmed-saves commit of 2026-11-21 (`1f9bc46`: `save-failed`, the crate-owned
+30 s timeout, the pending-save queue) is rebased on the README commit and pushed to
+`copoka/craft-libs` `feat/confirmed-saves` `fc410452`, gate `fmt`/`clippy -D warnings` rc 0 and
+`test -p craft-web-host` **35 passed**. Its PR waits for `#2108`: it is stacked on that branch.
 
 ## 6. Where things live
 

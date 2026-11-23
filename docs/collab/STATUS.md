@@ -5531,6 +5531,37 @@ shared layer.
 `copoka/craft-libs` `feat/confirmed-saves` `fc410452`, gate `fmt`/`clippy -D warnings` rc 0 and
 `test -p craft-web-host` **35 passed**. Its PR waits for `#2108`: it is stacked on that branch.
 
+### 5.62 The adapter seam on `main` and its five cases (2026-11-23, 23:40Z)
+
+**`crates/collab-adapter`.** Branch `feat/collab-adapter` from `origin/main` `700ce2f8`, head
+`a1793d08`: 1 351 lines — the crate (1 321), one `xtask` layer row, `Cargo.lock`. The seam is
+app-side because RFC-0020's shared contract still does not exist (`craft-libs#3235`: the four
+surfaces and the questions asked). No wire type (the trait carries the app's own `Edit`), no
+unmerged pin, no CI change. `seam` is join-at-role-and-sequence-point, ordered submission, the
+operations after a version, presence per peer, the text a removal orphaned; `ids` numbers existing
+blocks alike and mints a peer's blocks in the relay-granted space; `edit` applies four body edits
+through the document's primitives and reports their inverses; `relay` is the in-process backend
+(journal, stale rule, roles, latest-wins presence); `session` replays only the journal tail on
+reconnect and refuses a viewer before a submission leaves the process.
+
+**Cases** (`tests/conformance.rs`, five): two clients converge and a late joiner catches up (a
+second submission on one paragraph is `Stale`, synced, retried); a reconnect replays only the tail
+and an unservable point answers `Resync`; a removal against a text edit leaves one document on
+every replica and returns the orphaned text to its author; a viewer is refused at the seam and at
+the backend; a 3 000-paragraph document paginates 100+ pages identically on both replicas and the
+relay, and round-trips through `.docx` with a custom XML part byte for byte.
+
+**Gates (host `agents`).** `test -p wordcraft-collab-adapter` **13 passed**; workspace clippy
+`-D warnings` and `fmt --all --check` rc 0; `xtask ci` failed only
+`wordcraft-engine::cmd::packs::tests::swiss_german_and_portugal_portuguese_keep_their_languages_rules`,
+reproduced identically on detached `origin/main` in the same environment (`CRAFT_I18N_DIR` unset);
+`xtask layers` rc 0; `xtask wasm` rc 0.
+
+**Push.** Not in the fork yet: its `main` (`729cd0a5`) predates upstream's workflow changes, so a
+branch from `700ce2f8` brings `.github/workflows/*` the fork lacks and needs the token's `workflow`
+scope (`merge-upstream` likewise refused); it is `wordcraft:fork-push-workflow-scope` with
+<https://gist.github.com/copoka/dce1eb7e509d4c711123d64b4e6bc4a9> as the patch series.
+
 ## 6. Where things live
 
 | Concern | File |
